@@ -15,11 +15,8 @@ from typing import List
 
 import duckdb
 
-from modules.borrowing.domain.loan import Loan, LoanNotFoundError, LoanError, LoanStatus
-from modules.borrowing.domain.loan_repository import (
-    LoanRepository,
-    InMemoryLoanRepository,
-)
+from modules.borrowing.domain.loan import Loan, LoanNotFoundError
+from modules.borrowing.domain.loan_repository import LoanRepository
 
 
 class DuckDBLoanRepository(LoanRepository):
@@ -27,7 +24,7 @@ class DuckDBLoanRepository(LoanRepository):
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
-        self._con = duckdb.connect(":memory:")
+        self._con = duckdb.connect(database=":memory:")
         self._con.execute("DROP TABLE IF EXISTS loans")
         self._con.execute(
             """
@@ -36,110 +33,66 @@ class DuckDBLoanRepository(LoanRepository):
                 book_id        VARCHAR,
                 borrower_name  VARCHAR,
                 borrowed_at    TIMESTAMP,
-                returned_at    TIMESTAMP,
-                status         VARCHAR
+                returned_at    TIMESTAMP
             )
             """
         )
         path = Path(db_path)
-        if path.exists():
+        if path.exists() and path.stat().st_size > 0:
             self._con.execute(
                 f"INSERT INTO loans SELECT * FROM read_parquet('{db_path}')"
             )
 
     def save(self, loan: Loan) -> None:
-        # First check if active loan exists for this book
-        cursor = self._con.execute(
+        self._con.execute(
             """
-            SELECT id, borrower_name FROM loans
-            WHERE book_id = ?
-              AND status = 'ACTIVE'
-              AND returned_at IS NULL
+            INSERT INTO loans (id, book_id, borrower_name, borrowed_at, returned_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (id) DO UPDATE SET
+                book_id = EXCLUDED.book_id,
+                borrower_name = EXCLUDED.borrower_name,
+                borrowed_at = EXCLUDED.borrowed_at,
+                returned_at = EXCLUDED.returned_at
             """,
-            [loan.book_id],
+            [
+                loan.id,
+                loan.book_id,
+                loan.borrower_name,
+                loan.borrowed_at,
+                loan.returned_at,
+            ],
         )
-        existing = cursor.fetchone()
-        if existing is not None:
-            raise LoanError(
-                f"Book {loan.book_id} already on loan for borrower {existing[1]}"
-            )
-        else:
-            # No active loan exists, so this is a new loan (or book has none)
-            self._con.execute(
-                """
-                INSERT INTO loans (id, book_id, borrower_name, borrowed_at, returned_at, status)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (id) DO UPDATE SET
-                    book_id = EXCLUDED.book_id,
-                    borrower_name = EXCLUDED.borrower_name,
-                    borrowed_at = EXCLUDED.borrowed_at,
-                    returned_at = EXCLUDED.returned_at,
-                    status = EXCLUDED.status
-                """,
-                [
-                    loan.id,
-                    loan.book_id,
-                    loan.borrower_name,
-                    loan.borrowed_at,
-                    loan.returned_at,
-                    loan.status,
-                ],
-            )
+        self._flush()
 
     def get(self, loan_id: str) -> Loan:
         row = self._con.execute(
-            """
-            SELECT id, book_id, borrower_name, borrowed_at, returned_at, status
-            FROM loans
-            WHERE id = ?
-            """,
+            "SELECT id, book_id, borrower_name, borrowed_at, returned_at "
+            "FROM loans WHERE id = ?",
             [loan_id],
         ).fetchone()
         if row is None:
             raise LoanNotFoundError(loan_id)
-        return Loan(
+        return self._row_to_loan(row)
+
+    def list_all(self) -> List[Loan]:
+        cursor = self._con.execute(
+            "SELECT id, book_id, borrower_name, borrowed_at, returned_at "
+            "FROM loans ORDER BY borrowed_at DESC"
+        )
+        rows = cursor.fetchall()
+        return [self._row_to_loan(row) for row in rows]
+
+    def _row_to_loan(self, row) -> Loan:
+        # Create loan - borrowed_at should always be present
+        loan = Loan(
             id=row[0],
             book_id=row[1],
             borrower_name=row[2],
             borrowed_at=datetime.fromisoformat(row[3]) if isinstance(row[3], str) else row[3],
             returned_at=datetime.fromisoformat(row[4]) if isinstance(row[4], str) else row[4],
-            status=LoanStatus(row[5]),
         )
-
-    def list_all(self) -> List[Loan]:
-        cursor = self._con.execute(
-            """
-            SELECT id, book_id, borrower_name, borrowed_at, returned_at, status
-            FROM loans
-            ORDER BY borrowed_at DESC
-            """
-        )
-        loans = []
-        for row in cursor:
-            loans.append(
-                Loan(
-                    id=row[0],
-                    book_id=row[1],
-                    borrower_name=row[2],
-                    borrowed_at=datetime.fromisoformat(row[3]) if isinstance(row[3], str) else row[3],
-                    returned_at=datetime.fromisoformat(row[4]) if isinstance(row[4], str) else row[4],
-                    status=LoanStatus(row[5]),
-                )
-            )
-        return loans
-
-    def mark_returned(self, loan_id: str) -> None:
-        """Mark a loan as returned."""
-        self._con.execute(
-            """
-            UPDATE loans
-            SET status = 'RETURNED', returned_at = ?
-            WHERE id = ? AND status = 'ACTIVE'
-            """,
-            [datetime.now(), loan_id],
-        )
+        return loan
 
     def _flush(self) -> None:
-        self._con.execute(
-            f"COPY loans TO '{self._db_path}' (FORMAT PARQUET)"
-        )
+        Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._con.execute(f"COPY loans TO '{self._db_path}' (FORMAT PARQUET)")

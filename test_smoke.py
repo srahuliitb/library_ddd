@@ -11,17 +11,18 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 import tempfile
 
-from modules.catalog.infra.repositories.duckdb_book_repository import DuckDBBookRepository
-from modules.catalog.application.services.book_service import BookService
-from modules.borrowing.infra.repositories.duckdb_loan_repository import DuckDBLoanRepository
+from modules.catalog.infrastructure.repositories.duckdb_book_repository import (
+    DuckDBBookRepository,
+)
+from modules.catalog.application.services.book_service_impl import BookService
+from modules.borrowing.infra.repositories.duckdb_loan_repository import (
+    DuckDBLoanRepository,
+)
 from modules.borrowing.application.services.loan_service import LoanService
 from modules.catalog.domain.book import BookUnavailableError, BookNotFoundError
-from modules.borrowing.domain.loan import NoAvailableCopiesError, LoanAlreadyReturnedError
+from modules.borrowing.domain.loan import LoanAlreadyReturnedError
 
 
 def main() -> None:
@@ -59,12 +60,12 @@ def main() -> None:
             loan_service.borrow_book(
                 {"id": "L002", "book_id": "B001", "borrower_name": "Bob"}
             )
-        except NoAvailableCopiesError:
-            print("  ok: second borrow rejected (NoAvailableCopiesError)")
+        except BookUnavailableError:
+            print("  ok: second borrow rejected (BookUnavailableError)")
         else:
-            raise AssertionError("expected NoAvailableCopiesError")
+            raise AssertionError("expected BookUnavailableError")
 
-        # 4. Returning a non-existent book id fails at catalog level.
+        # 4. Borrowing a non-existent book fails at catalog level.
         try:
             loan_service.borrow_book(
                 {"id": "L003", "book_id": "B999", "borrower_name": "Carol"}

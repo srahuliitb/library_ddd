@@ -1,11 +1,11 @@
 """
 Entry point of the application.
 
-The only thing this file does is call composition_root.py to build the app,
+The only thing this file does is call app/composition_root.py to build the app,
 then run the server. It contains zero business logic and knows nothing
 about modules, layers, or infrastructure.
 """
-from composition_root import build_app
+from app.composition_root import build_app
 
 app = build_app()
 

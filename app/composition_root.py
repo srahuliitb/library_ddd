@@ -12,13 +12,17 @@ from pathlib import Path
 from fastapi import FastAPI
 
 # --- Catalog bounded context ---
-from modules.catalog.infrastructure.repositories.duckdb_book_repository import DuckDBBookRepository
+from modules.catalog.infrastructure.repositories.duckdb_book_repository import (
+    DuckDBBookRepository,
+)
 from modules.catalog.application.services.book_service_impl import BookService
 from modules.catalog.interface.routes import catalog_router
 
 # --- Borrowing bounded context ---
-from modules.borrowing.infrastructure.repositories.duckdb_loan_repository import DuckDBLoanRepository
-from modules.borrowing.application.services.loan_service_impl import LoanService
+from modules.borrowing.infra.repositories.duckdb_loan_repository import (
+    DuckDBLoanRepository,
+)
+from modules.borrowing.application.services.loan_service import LoanService
 from modules.borrowing.interface.routes import borrowing_router
 
 

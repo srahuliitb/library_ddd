@@ -1,1 +1,1 @@
-"""infra repositories package."""
+"""Borrowing repository implementations."""

@@ -19,3 +19,6 @@ class LoanResponse(BaseModel):
     borrowed_at: datetime
     returned_at: datetime | None
     is_active: bool
+
+    class Config:
+        from_attributes = True
