@@ -11,24 +11,17 @@ It depends only on abstract types (LoanRepository and AbstractBookService),
 so it can be unit tested by injecting fakes for both.
 """
 from __future__ import annotations
+
+from abc import ABC
 from typing import List
 
-from modules.borrowing.domain.loan import (
-    Loan,
-    LoanNotFoundError,
-    LoanError,
-)
+from modules.borrowing.domain.loan import Loan, LoanNotFoundError, LoanAlreadyReturnedError
 from modules.borrowing.domain.loan_repository import LoanRepository
-from modules.catalog.domain.abstract_book_service import (
-    AbstractBookService,
-)
-from modules.catalog.domain.book import (
-    BookUnavailableError,
-    BookNotFoundError,
-)
+from modules.catalog.domain.book import BookNotFoundError, BookUnavailableError
+from modules.catalog.domain.book_service import AbstractBookService
 
 
-class LoanService:
+class LoanService(ABC):
     """Use-case orchestrator for the borrowing context."""
 
     def __init__(
@@ -49,11 +42,14 @@ class LoanService:
           3. Try to reserve a copy in the catalog (cross-context call).
           4. Persist the loan.
         """
+        from datetime import datetime
+        # borrowed_at defaults to now if not provided
+        borrowed_at = raw_data.get("borrowed_at") or datetime.utcnow()
         loan = Loan(
             id=raw_data["id"],
             book_id=raw_data["book_id"],
             borrower_name=raw_data["borrower_name"],
-            borrowed_at=raw_data.get("borrowed_at"),
+            borrowed_at=borrowed_at,
         )
         loan.standardize()
         loan.validate()
@@ -70,7 +66,7 @@ class LoanService:
         try:
             self._catalog.reserve_copy(loan.book_id)
         except BookUnavailableError as exc:
-            raise LoanError(f"No available copies: {exc}") from exc
+            raise BookUnavailableError(f"No available copies: {exc}") from exc
 
         self._loan_repo.save(loan)
         return loan
@@ -95,9 +91,11 @@ class LoanService:
         return loan
 
     def list_loans(self) -> List[Loan]:
+        """List all loans."""
         return self._loan_repo.list_all()
 
     def get_loan(self, loan_id: str) -> Loan:
+        """Get a loan by id."""
         try:
             return self._loan_repo.get(loan_id)
         except LoanNotFoundError as exc:

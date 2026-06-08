@@ -1,5 +1,5 @@
 """
-Domain entities and abstract repository for the Catalog context.
+Domain entities for the Catalog bounded context.
 
 This file has ZERO imports from any other layer. It is the stable core:
 everything else in the system depends on it, it depends on nothing.
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Protocol
 
 
 class BookNotFoundError(Exception):
@@ -32,7 +31,6 @@ class Book:
     created_at: datetime = field(default_factory=datetime.utcnow)
 
     def __post_init__(self) -> None:
-        # If not explicitly set, available copies equals total copies.
         if not hasattr(self, "available_copies") or self.available_copies is None:
             self.available_copies = self.total_copies
         self.validate()
@@ -54,6 +52,7 @@ class Book:
             raise ValueError("available_copies cannot be negative.")
         if self.available_copies > self.total_copies:
             raise ValueError("available_copies cannot exceed total_copies.")
+
     def standardize(self) -> None:
         """Normalize book data before saving."""
         self.id = self.id.strip()
@@ -75,16 +74,4 @@ class Book:
                 f"Cannot return book {self.id!r}: all copies already in library."
             )
         self.available_copies += 1
-
-
-# ---- Abstract repository contract (the 'Repository' pattern) ----
-
-
-class BookRepository(Protocol):
-    """Abstract repository defining the persistence contract for Book."""
-
-    def save(self, book: Book) -> None: ...
-    def get(self, book_id: str) -> Book: ...
-    def list_all(self) -> List[Book]: ...
-    def exists(self, book_id: str) -> bool: ...
 

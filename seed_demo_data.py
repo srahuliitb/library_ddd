@@ -10,20 +10,24 @@ parquet files with realistic data.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-# Make `composition_root` importable when run as a script.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Data paths (shared between contexts)
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR.mkdir(exist_ok=True)
 
-from composition_root import (  # noqa: E402
+CATALOG_DB_PATH = str(DATA_DIR / "catalog.parquet")
+BORROWING_DB_PATH = str(DATA_DIR / "borrowing.parquet")
+
+from modules.catalog.infrastructure.repositories.duckdb_book_repository import (
     DuckDBBookRepository,
-    DuckDBLoanRepository,
-    BookService,
-    LoanService,
-    CATALOG_DB_PATH,
-    BORROWING_DB_PATH,
 )
+from modules.catalog.application.services.book_service_impl import BookService
+from modules.borrowing.infra.repositories.duckdb_loan_repository import (
+    DuckDBLoanRepository,
+)
+from modules.borrowing.application.services.loan_service import LoanService
 
 
 def seed() -> None:
