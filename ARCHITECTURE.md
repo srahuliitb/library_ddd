@@ -380,18 +380,27 @@ classDiagram
 ### API Endpoints
 
 ```mermaid
-erDiagram
-    CATALOG_API {
-        POST /catalog/books "Add a book"
-        GET /catalog/books "List all books"
-        GET /catalog/books/{id} "Get book by ID"
+stateDiagram-v2
+    state CATALOG_API {
+        [*] --> POST_books : "Add a book"
+        [*] --> GET_books : "List all books"
+        [*] --> GET_book_id : "Get book by ID"
+        
+        POST_books : POST /catalog/books
+        GET_books : GET /catalog/books
+        GET_book_id : GET /catalog/books/{id}
     }
-    
-    BORROWING_API {
-        POST /borrowing/loans "Create a loan"
-        GET /borrowing/loans "List all loans"
-        GET /borrowing/loans/{id} "Get loan by ID"
-        POST /borrowing/loans/{id}/return "Return a book"
+
+    state BORROWING_API {
+        [*] --> POST_loans : "Create a loan"
+        [*] --> GET_loans : "List all loans"
+        [*] --> GET_loan_id : "Get loan by ID"
+        [*] --> POST_return : "Return a book"
+
+        POST_loans : POST /borrowing/loans
+        GET_loans : GET /borrowing/loans
+        GET_loan_id : GET /borrowing/loans/{id}
+        POST_return : POST /borrowing/loans/{id}/return
     }
 ```
 
@@ -550,8 +559,8 @@ graph LR
     end
     
     subgraph "Tables"
-        BOOKS_TABLE[CREATE TABLE books<br/>(id, title, author, isbn,<br/>total_copies, available_copies, created_at)]
-        LOANS_TABLE[CREATE TABLE loans<br/>(id, book_id, borrower_name,<br/>borrowed_at, returned_at)]
+        BOOKS_TABLE["CREATE TABLE books<br/>(id, title, author, isbn,<br/>total_copies, available_copies, created_at)"]
+        LOANS_TABLE["CREATE TABLE loans<br/>(id, book_id, borrower_name,<br/>borrowed_at, returned_at)"]
     end
     
     subgraph "Export"
